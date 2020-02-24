@@ -19,14 +19,12 @@ private:
   string hostServer;
   char * bufToServer;
   size_t endIdx;
-  char ** bufFromServerPtr;
   char * bufFromServer;
   size_t httpResSize;
   //   int requestId;
 public:
   proxyServer(string hs, char * buftoserver, size_t eIdx): hostServer(hs), bufToServer(buftoserver), endIdx(eIdx) {
-    bufFromServerPtr = new char*();
-    bufFromServer = NULL;
+    bufFromServer = nullptr;
   }
 
   // get sockaddr, IPv4 or IPv6:
@@ -38,7 +36,7 @@ public:
   }
 
   int getHttpResponse() {
-    int sockfd, numbytes;
+    int sockfd;
     struct addrinfo hints, *servinfo, *p;
     int rv;
     char s[INET6_ADDRSTRLEN];
@@ -94,11 +92,11 @@ public:
     }
 
     // for test
-    for (int i = 0; i < numbytes1st; i++) {
-      if (tmp[i] == '\0') {
-        cout << "index: " << i << " is \\0" << endl;
-      }
-    }
+    // for (int i = 0; i < numbytes1st; i++) {
+    //   if (tmp[i] == '\0') {
+    //     cout << "index: " << i << " is \\0" << endl;
+    //   }
+    // }
 
     tmp[numbytes1st] = '\0';
 
@@ -109,8 +107,6 @@ public:
 
     long contentLen = parseContentLength(tmp);
 
-    cout << "contentLen: " << contentLen << endl;
-
     int headLen = parseResHeadLength(tmp);
     cout << "headLen: " << headLen << endl;
 
@@ -118,13 +114,13 @@ public:
     cout << "bodyremainLen: " << bodyremainLen << endl;
 
     httpResSize = contentLen + headLen;
-    bufFromServer = new char[contentLen + headLen];
+    bufFromServer = new char[httpResSize + 1];
     for (int i = 0 ; i < numbytes1st; ++i) {
       bufFromServer[i] = tmp[i];
     }
     free(tmp);
     int recvByte;
-    char * tmpP = bufFromServer + numbytes1st;
+    char * tmpP = bufFromServer + numbytes1st;   // tmpP is the start point for recving remaining content
 
     int count = 0;
     while (bodyremainLen > 0 && (recvByte = recv(sockfd, tmpP, bodyremainLen, 0)) > 0) {
@@ -134,12 +130,11 @@ public:
       bodyremainLen -= recvByte;
     }
     tmpP[0] = '\0';
-    bufFromServerPtr = &bufFromServer ;
 
     // for test
     cout << "bufFromServer length: " << strlen(bufFromServer) << endl;
 
-    printf("client: received\n '%s'\n", *bufFromServerPtr);
+    //printf("client: received\n '%s'\n", bufFromServer);
     close(sockfd);
     return 0;
   }
@@ -153,7 +148,7 @@ public:
   }
 
   long parseContentLength(char * resp) {
-    string response = resp;
+    string response = resp;    // response only contain chars before first '\0'
     cout << "string response size: " << response.size() << endl;
     size_t idx1 = response.find("Content-Length");
     size_t idx2 = response.find_first_of("\r\n", idx1);
@@ -164,9 +159,14 @@ public:
     long length = stol(str_length);
     return length;
   }
+
   int parseResHeadLength(char * resp) {
     string response = resp;
     size_t idx1 = response.find("\r\n\r\n");
     return idx1 + 4;
+  }
+
+  ~proxyServer () {
+    delete[] bufFromServer;
   }
 };

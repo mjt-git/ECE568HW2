@@ -15,31 +15,39 @@ using namespace std;
 
 class proxyClient {
 private:
-  char *  buffer;
+  char *  buffer;   // store http request from client
   string hostServer;
-  string serverUrl;
   size_t endIdx;
-  unordered_map<int, struct sockaddr_storage> clients;// pair store id & addrinfo ipv4 ^ ipv6
+  int ownFD;
+
 public:
+  proxyClient() {
+    buffer = nullptr;
+    hostServer = "";
+    endIdx = 0;
+    ownFD = -1;
+  }
+
   void parseHttpRequest() {
     string total = "";
-    for(int i = 0; buffer[i] != 0; i++) {
+    for (int i = 0; buffer[i] != 0; i++) {
       total.push_back(buffer[i]);
     }
-    cout << "HTTP request" << endl << total << endl;
+    cout << "HTTP request:" << endl << total << endl;
     cout << "**********************" << endl;
     size_t hostIdx = total.find("Host:");
     size_t hostServerIdx = hostIdx + 6;
     size_t retIdx = total.find_first_of("\n", hostIdx);
     hostServer = total.substr(hostServerIdx, retIdx - hostServerIdx - 1);
-    endIdx =total.find("\r\n\r\n");
+    endIdx = total.find("\r\n\r\n");
   }
-  
-  size_t getEndIdx(){
+
+  size_t getEndIdx() {
     return endIdx;
   }
-  
-  int getHttpRequest() {
+
+  // create own socket and listen to it
+  int initOwnFD() {
     int status;
     int socket_fd;
     struct addrinfo host_info;
@@ -60,9 +68,9 @@ public:
       return -1;
     } //if
 
-    socket_fd = socket(host_info_list->ai_family, 
-		       host_info_list->ai_socktype, 
-		       host_info_list->ai_protocol);
+    socket_fd = socket(host_info_list->ai_family,
+                       host_info_list->ai_socktype,
+                       host_info_list->ai_protocol);
     if (socket_fd == -1) {
       cerr << "Error: cannot create socket" << endl;
       cerr << "  (" << hostname << "," << port << ")" << endl;
@@ -80,58 +88,73 @@ public:
 
     status = listen(socket_fd, 100);
     if (status == -1) {
-      cerr << "Error: cannot listen on socket" << endl; 
+      cerr << "Error: cannot listen on socket" << endl;
       cerr << "  (" << hostname << "," << port << ")" << endl;
       return -1;
     } //if
-
-    cout << "Waiting for connection on port " << port << endl;
-    struct sockaddr_storage socket_addr;
-    socklen_t socket_addr_len = sizeof(socket_addr);
-    int client_connection_fd;
-    client_connection_fd = accept(socket_fd, (struct sockaddr *)&socket_addr, &socket_addr_len);
-
-    
-    if (client_connection_fd == -1) {
-      cerr << "Error: cannot accept connection on socket" << endl;
-      return -1;
-    } //if
-    int numbytes;
-
-    buffer = new char[65535];
-    if((numbytes=recv(client_connection_fd, buffer, 65535, 0))==-1){
-      perror("recv");
-      exit(1);
-    }
-
-    buffer[numbytes] = '\0';
-    parseHttpRequest(); 
-
-    proxyServer ps(getHostServer(),getBuffer(),getEndIdx());
-    int res2 = ps.getHttpResponse();
-    if(res2 > 0) {
-      cout << "res2: " << res2;
-      //      exit(1);
-    }
-    char * httpResponse = ps.getBufFromServer();
-
-    // for test
-    //    cout << "HTTP RESPONSE RECEIVED: \n" << *httpResponse << endl;
-    
-    int bytesSend = send(client_connection_fd, httpResponse, ps.getHttpResSize(), 0);
-    cout << "bytesSend: " << bytesSend << endl;
-    cout << "httpResponse length: " << strlen(httpResponse)+1 << endl;
-   
     freeaddrinfo(host_info_list);
-    close(socket_fd);
+    return socket_fd;
+  }
 
-    // for test
-    cout << "end of gethttprequest function" << endl;
-    
-    
+  int getHttpRequest() {
+    int initRes = initOwnFD();
+    if (initRes == -1) {
+      return -1;
+    }
+    else {
+      ownFD = initRes;
+    }
+
+    while (true) {
+      cout << "Waiting for connection on port 4444" << endl;
+      struct sockaddr_storage socket_addr;
+      socklen_t socket_addr_len = sizeof(socket_addr);
+      int client_connection_fd;
+      client_connection_fd = accept(ownFD, (struct sockaddr *)&socket_addr, &socket_addr_len);
+
+      cout << "conected with client!!!!!!!!!!!" << endl;
+
+      if (client_connection_fd == -1) {
+        cerr << "Error: cannot accept connection on socket" << endl;
+        return -1;
+      } //if
+      int numbytes;   // bytes reveived from client
+      if(buffer != nullptr) {
+        delete[] buffer;
+      }
+      buffer = new char[65535];
+      if ((numbytes = recv(client_connection_fd, buffer, 65535, 0)) == -1) {
+        perror("recv");
+        exit(1);
+      }
+
+      buffer[numbytes] = '\0';
+      parseHttpRequest();
+
+      proxyServer ps(getHostServer(), getBuffer(), getEndIdx());
+      int res2 = ps.getHttpResponse();
+      if (res2 > 0) {
+        cout << "res2: " << res2;
+        //      exit(1);
+      }
+      char * httpResponse = ps.getBufFromServer();
+
+      // for test
+      //    cout << "HTTP RESPONSE RECEIVED: \n" << *httpResponse << endl;
+
+      int bytesSend = send(client_connection_fd, httpResponse, ps.getHttpResSize(), 0);
+      cout << "bytesSend: " << bytesSend << endl;
+      cout << "httpResponse length: " << strlen(httpResponse) + 1 << endl;
+    }
+
     return 0;
   }
-  
+
+  ~proxyClient () {
+    delete[] buffer;
+    close(ownFD);
+  }
+
   char* getBuffer() {
     return buffer;
   }
@@ -144,7 +167,7 @@ public:
 int main() {
   proxyClient ctop;
   int res = ctop.getHttpRequest();
-  if(res == -1) {
+  if (res == -1) {
     exit(1);
   }
   return 1;
