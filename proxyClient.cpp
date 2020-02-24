@@ -118,7 +118,7 @@ public:
     // for test
     //    cout << "HTTP RESPONSE RECEIVED: \n" << *httpResponse << endl;
     
-    int bytesSend = send(client_connection_fd, httpResponse, strlen(httpResponse)+1, 0);
+    int bytesSend = send(client_connection_fd, httpResponse, ps.getHttpResSize(), 0);
     cout << "bytesSend: " << bytesSend << endl;
     cout << "httpResponse length: " << strlen(httpResponse)+1 << endl;
    

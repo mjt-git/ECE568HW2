@@ -21,6 +21,7 @@ private:
   size_t endIdx;
   char ** bufFromServerPtr;
   char * bufFromServer;
+  size_t httpResSize;
   //   int requestId;
 public:
   proxyServer(string hs, char * buftoserver, size_t eIdx): hostServer(hs), bufToServer(buftoserver), endIdx(eIdx) {
@@ -116,6 +117,7 @@ public:
     long bodyremainLen = contentLen - (numbytes1st - headLen);
     cout << "bodyremainLen: " << bodyremainLen << endl;
 
+    httpResSize = contentLen + headLen;
     bufFromServer = new char[contentLen + headLen];
     for (int i = 0 ; i < numbytes1st; ++i) {
       bufFromServer[i] = tmp[i];
@@ -140,6 +142,10 @@ public:
     printf("client: received\n '%s'\n", *bufFromServerPtr);
     close(sockfd);
     return 0;
+  }
+
+  size_t getHttpResSize() {
+    return httpResSize;
   }
 
   char * getBufFromServer() {
