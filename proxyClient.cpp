@@ -136,6 +136,7 @@ public:
         perror("recv");
         exit(1);
       }
+      if(numbytes == 0) {continue;}
 
       buffer[numbytes] = '\0';
       string total = parseHttpRequest();    // http request
