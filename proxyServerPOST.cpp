@@ -14,7 +14,7 @@
 #include <vector>
 using namespace std;
 
-class proxyServerGET {
+class proxyServerPOST {
 private:
   string hostServer;
   char * bufToServer;
@@ -24,7 +24,7 @@ private:
   string portNum;
 
 public:
-  proxyServerGET(string hs, char * buftoserver, size_t eIdx, string portnum): hostServer(hs), bufToServer(buftoserver), endIdx(eIdx), portNum(portnum) {
+  proxyServerPOST(string hs, char * buftoserver, size_t eIdx, string portnum): hostServer(hs), bufToServer(buftoserver), endIdx(eIdx), portNum(portnum) {
     bufFromServer = nullptr;
   }
 
@@ -79,7 +79,7 @@ public:
 
     freeaddrinfo(servinfo); // all done with this structure
 
-    int sendsta = send(sockfd, bufToServer, endIdx + 4, 0);
+    int sendsta = send(sockfd, bufToServer, endIdx, 0);
     if (sendsta == -1) {
       perror("second send");
       exit(1);
@@ -167,7 +167,7 @@ public:
     return idx1 + 4;
   }
 
-  ~proxyServerGET () {
+  ~proxyServerPOST () {
     delete[] bufFromServer;
   }
 };

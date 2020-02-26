@@ -9,7 +9,9 @@
 #include <utility>
 #include <unordered_map>
 
-#include "proxyServer.cpp"
+#include "proxyServerGET.cpp"
+#include "proxyServerCONNECT.cpp"
+#include "proxyServerPOST.cpp"
 
 using namespace std;
 
@@ -28,7 +30,13 @@ public:
     ownFD = -1;
   }
 
-  void parseHttpRequest() {
+  string parseType(string total) {
+    size_t firstBlank = total.find_first_of(" ");
+    string ret = total.substr(0, firstBlank);
+    return ret;
+  }
+
+  string parseHttpRequest() {
     string total = "";
     for (int i = 0; buffer[i] != 0; i++) {
       total.push_back(buffer[i]);
@@ -37,9 +45,10 @@ public:
     cout << "**********************" << endl;
     size_t hostIdx = total.find("Host:");
     size_t hostServerIdx = hostIdx + 6;
-    size_t retIdx = total.find_first_of("\n", hostIdx);
-    hostServer = total.substr(hostServerIdx, retIdx - hostServerIdx - 1);
+    size_t retIdx = total.find_first_of("\r\n", hostIdx);
+    hostServer = total.substr(hostServerIdx, retIdx - hostServerIdx);
     endIdx = total.find("\r\n\r\n");
+    return total;
   }
 
   size_t getEndIdx() {
@@ -119,7 +128,7 @@ public:
         return -1;
       } //if
       int numbytes;   // bytes reveived from client
-      if(buffer != nullptr) {
+      if (buffer != nullptr) {
         delete[] buffer;
       }
       buffer = new char[65535];
@@ -129,25 +138,65 @@ public:
       }
 
       buffer[numbytes] = '\0';
-      parseHttpRequest();
+      string total = parseHttpRequest();    // http request
+      string type = parseType(total);
 
-      proxyServer ps(getHostServer(), getBuffer(), getEndIdx());
-      int res2 = ps.getHttpResponse();
-      if (res2 > 0) {
-        cout << "res2: " << res2;
-        //      exit(1);
+      switch (type.size()) {
+      case 3:    // GET
+        requestGET(client_connection_fd);
+        // deal with cache !!!
+        break;
+      case 4:    // POST
+        cout << "numbytes received from client of POST: " << numbytes << endl;
+        requestPOST(client_connection_fd, numbytes);
+        break;
+      case 7:    // CONNECT
+        requestCONNECT(client_connection_fd);
+        break;
       }
-      char * httpResponse = ps.getBufFromServer();
-
-      // for test
-      //    cout << "HTTP RESPONSE RECEIVED: \n" << *httpResponse << endl;
-
-      int bytesSend = send(client_connection_fd, httpResponse, ps.getHttpResSize(), 0);
-      cout << "bytesSend: " << bytesSend << endl;
-      cout << "httpResponse length: " << strlen(httpResponse) + 1 << endl;
     }
 
     return 0;
+  }
+
+
+  void requestCONNECT(int client_connection_fd) {
+    proxyServerCONNECT ps(getHostServer(), getBuffer(), getEndIdx(), "443", client_connection_fd);
+    ps.tunnelRun();
+  }
+
+  void requestPOST(int client_connection_fd, int numbytes) {
+    proxyServerPOST ps(getHostServer(), getBuffer(), numbytes, "80");
+    int res2 = ps.getHttpResponse();
+    if (res2 > 0) {
+      cout << "res2: " << res2;
+      //      exit(1);
+    }
+    char * httpResponse = ps.getBufFromServer();
+
+    // for test
+    //    cout << "HTTP RESPONSE RECEIVED: \n" << *httpResponse << endl;
+
+    int bytesSend = send(client_connection_fd, httpResponse, ps.getHttpResSize(), 0);
+    cout << "bytesSend: " << bytesSend << endl;
+    cout << "httpResponse length: " << strlen(httpResponse) + 1 << endl;
+  }
+
+  void requestGET(int client_connection_fd) {
+    proxyServerGET ps(getHostServer(), getBuffer(), getEndIdx(), "80");
+    int res2 = ps.getHttpResponse();
+    if (res2 > 0) {
+      cout << "res2: " << res2;
+      //      exit(1);
+    }
+    char * httpResponse = ps.getBufFromServer();
+
+    // for test
+    //    cout << "HTTP RESPONSE RECEIVED: \n" << *httpResponse << endl;
+
+    int bytesSend = send(client_connection_fd, httpResponse, ps.getHttpResSize(), 0);
+    cout << "bytesSend: " << bytesSend << endl;
+    cout << "httpResponse length: " << strlen(httpResponse) + 1 << endl;
   }
 
   ~proxyClient () {
