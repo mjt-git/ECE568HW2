@@ -106,11 +106,15 @@ public:
       cout << "This time receive from " << recvfrom << endl;
       cout << "recvRes: " << recvRes << endl;
 
-      if(recvRes == 0) {break;}
+      if(recvRes == 0) {
+	close(clientFD);
+	close(sockfd);
+	break;
+      }
       send(FDsendto, buff, recvRes, 0);
 
       // temp compromise
-      break;  
+      //break;  
     }
 
     cout << "out!!!!!!!!!" << endl;
